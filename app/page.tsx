@@ -55,7 +55,7 @@ console.log(data,'DATA::::')
           <div className="flex items-center justify-between">
             <div className="flex items-center  gap-2">
               <Database className="h-8 w-8 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">Pakistan Tobacco Company</h1>
+              <h1 className="text-xl font-bold text-gray-900">Data Fetcher</h1>
             </div>
             {/* <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)} className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
@@ -202,7 +202,7 @@ console.log(data,'DATA::::')
       {/* Footer */}
       <footer className="border-t bg-white/80 backdrop-blur-sm mt-16">
         <div className="container mx-auto px-4 py-8 text-center text-gray-600">
-          <p>&copy; 2025. Powered by Pakistan Tobacco Company.</p>
+          <p>&copy; 2025. Powered by Data Fetcher Company.</p>
         </div>
       </footer>
     </div>
