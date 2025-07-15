@@ -83,14 +83,34 @@ export default function LandingPage() {
               <Cloud className="h-8 w-8 text-blue-600" />
               <h1 className="text-xl font-bold text-gray-900">Data Fetcher</h1>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowUploader(true)}
-              className="flex items-center gap-2"
-            >
-              Upload File
-            </Button>
+            <div className="flex items-center gap-2">
+             
+              {/* Logout button if isLoggedIn is true in localStorage */}
+              {typeof window !== "undefined" && typeof window.localStorage !== "undefined" && window.localStorage.getItem("isLoggedIn") === "true" && (
+               
+               <>
+               <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    localStorage.clear()
+                    window.location.reload()
+                  }}
+                  className="flex items-center gap-2"
+                  >
+                  Logout
+                </Button>
+                <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowUploader(true)}
+                className="flex items-center gap-2"
+              >
+                Upload File
+              </Button>
+                  </>
+              )}
+            </div>
           </div>
         </div>
       </header>
