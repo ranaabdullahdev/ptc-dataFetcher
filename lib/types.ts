@@ -42,4 +42,21 @@ export interface ExcelData {
   columns: string[]
   data: Record<string, any>[]
   totalRows: number
+}
+
+export interface FileSearchResponse {
+  success: boolean
+  data?: Record<string, any>
+  searchedColumn?: string
+  searchedValue?: string
+  error?: string
+  availableColumns?: string[]
+}
+
+export interface FileDataResponse {
+  success: boolean
+  file?: UploadedFile
+  data?: ExcelData
+  allSheets?: ExcelData[]
+  error?: string
 } 

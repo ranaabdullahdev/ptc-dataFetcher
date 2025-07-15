@@ -13,6 +13,7 @@ export async function GET(
     const action = searchParams.get('action') // 'metadata', 'download', 'read'
     const searchId = searchParams.get('search')
     const queryId = searchParams.get('id')
+    const uppercaseId = searchParams.get('Id') // Handle uppercase Id parameter
 
     // Get file metadata from database
     const { data: fileData, error: dbError } = await supabase
@@ -29,8 +30,8 @@ export async function GET(
     }
 
     // Search by ID in file (CSV or Excel) - this must come BEFORE metadata return
-    if (searchId !== null || queryId !== null) {
-      const searchValue = searchId || queryId
+    if (searchId !== null || queryId !== null || uppercaseId !== null) {
+      const searchValue = searchId || queryId || uppercaseId
       // Download file from storage
       const blob = await downloadFile(fileData.file_path)
       let rows: any[] = []
@@ -70,13 +71,26 @@ export async function GET(
       } else {
         return NextResponse.json({ success: false, error: 'Unsupported file type for search' }, { status: 400 })
       }
-      // Find row where first column matches searchValue (case-insensitive)
-      const idColumn = columns[0]
+      // Find the ID column - look for common ID column names or use first column as fallback
+      const possibleIdColumns = ['id', 'ID', 'Id', 'iD']
+      let idColumn = columns.find(col => possibleIdColumns.includes(col)) || columns[0]
+      
+      // Find row where ID column matches searchValue (case-insensitive)
       const found = rows.find(row => String(row[idColumn]).toLowerCase() === String(searchValue).toLowerCase())
       if (!found) {
-        return NextResponse.json({ success: false, error: `No data found for ID: ${searchValue}` }, { status: 404 })
+        return NextResponse.json({ 
+          success: false, 
+          error: `No data found for ID: ${searchValue}`,
+          searchedColumn: idColumn,
+          availableColumns: columns
+        }, { status: 404 })
       }
-      return NextResponse.json({ success: true, data: found })
+      return NextResponse.json({ 
+        success: true, 
+        data: found,
+        searchedColumn: idColumn,
+        searchedValue: searchValue
+      })
     }
 
     // Only return file metadata if not searching by ID
