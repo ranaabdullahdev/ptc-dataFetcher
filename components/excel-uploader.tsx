@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useState, useCallback, useMemo } from 'react'
-import { Upload, FileSpreadsheet, X, Download, Search, Filter, RefreshCw, Link, Globe } from 'lucide-react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import { Upload, FileSpreadsheet, X, Download, Search, Filter, RefreshCw, Link, Globe, Trash2, Eye, CloudUpload } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import * as XLSX from 'xlsx'
+import { UploadedFile } from '@/lib/types'
 
 interface ExcelData {
   fileName: string
@@ -40,8 +41,11 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
   const [selectedSheet, setSelectedSheet] = useState(0)
   const [allSheets, setAllSheets] = useState<ExcelData[]>([])
   const [showFilters, setShowFilters] = useState(false)
-  const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file')
+  const [uploadMethod, setUploadMethod] = useState<'file' | 'url' | 'supabase'>('file')
   const [googleSheetUrl, setGoogleSheetUrl] = useState('')
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [loadingFiles, setLoadingFiles] = useState(false)
+  const [uploadingToSupabase, setUploadingToSupabase] = useState(false)
   
   const [filters, setFilters] = useState<FilterState>({
     globalSearch: '',
@@ -49,6 +53,176 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
     sortColumn: '',
     sortDirection: 'asc'
   })
+
+  // Load uploaded files from Supabase on component mount
+  useEffect(() => {
+    loadUploadedFiles()
+  }, [])
+
+  // Load uploaded files from Supabase
+  const loadUploadedFiles = async () => {
+    setLoadingFiles(true)
+    try {
+      const response = await fetch('/api/files/list')
+      const result = await response.json()
+      
+      if (result.success) {
+        setUploadedFiles(result.files || [])
+      } else {
+        console.error('Failed to load files:', result.error)
+      }
+    } catch (error) {
+      console.error('Error loading files:', error)
+    } finally {
+      setLoadingFiles(false)
+    }
+  }
+
+  // Upload file to Supabase
+  const uploadToSupabase = async (file: File) => {
+    setUploadingToSupabase(true)
+    setError("")
+
+    try {
+      console.log('Starting file upload to Supabase:', file.name)
+      
+      const formData = new FormData()
+      formData.append('file', file)
+
+      console.log('Sending upload request...')
+      const response = await fetch('/api/files/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      console.log('Upload response status:', response.status)
+      const result = await response.json()
+      console.log('Upload response:', result)
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `Upload failed with status ${response.status}`)
+      }
+
+      console.log('File uploaded successfully, reloading files list...')
+      // Reload the files list
+      await loadUploadedFiles()
+      
+      return result.file
+    } catch (error) {
+      console.error('Upload error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload file'
+      setError(`Upload failed: ${errorMessage}`)
+      throw error
+    } finally {
+      setUploadingToSupabase(false)
+    }
+  }
+
+  // Load file from Supabase
+  const loadFileFromSupabase = async (fileId: string) => {
+    setLoading(true)
+    setError("")
+
+    try {
+      const response = await fetch(`/api/files/${fileId}?action=read`)
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to load file')
+      }
+
+      if (result.allSheets && result.allSheets.length > 0) {
+        // Excel file with multiple sheets
+        setAllSheets(result.allSheets)
+        setExcelData(result.allSheets[0])
+        setSelectedSheet(0)
+      } else if (result.data) {
+        // Single sheet (CSV or Excel)
+        setAllSheets([result.data])
+        setExcelData(result.data)
+        setSelectedSheet(0)
+      }
+
+      // Reset filters
+      setFilters({
+        globalSearch: '',
+        columnFilters: {},
+        sortColumn: '',
+        sortDirection: 'asc'
+      })
+
+      if (onDataLoaded && result.data) {
+        onDataLoaded(result.data)
+      }
+
+    } catch (error) {
+      console.error('Error loading file:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load file')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Delete file from Supabase
+  const deleteFile = async (fileId: string) => {
+    try {
+      const response = await fetch(`/api/files/${fileId}`, {
+        method: 'DELETE'
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to delete file')
+      }
+
+      // Reload the files list
+      await loadUploadedFiles()
+    } catch (error) {
+      console.error('Delete error:', error)
+      setError(error instanceof Error ? error.message : 'Failed to delete file')
+    }
+  }
+
+  // Convert data to CSV file and upload to Supabase
+  const saveDataToSupabase = async (data: ExcelData) => {
+    setUploadingToSupabase(true)
+    setError("")
+
+    try {
+      // Convert data to CSV
+      const csvContent = [
+        data.columns.join(','),
+        ...data.data.map(row => 
+          data.columns.map(col => {
+            const value = row[col] || ''
+            return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
+          }).join(',')
+        )
+      ].join('\n')
+
+      // Create a file from the CSV content
+      const csvFile = new File([csvContent], `${data.fileName.replace(/\.[^/.]+$/, '')}.csv`, {
+        type: 'text/csv'
+      })
+
+      // Upload to Supabase
+      const uploadedFile = await uploadToSupabase(csvFile)
+      
+      if (uploadedFile) {
+        // Optionally load the uploaded file immediately
+        await loadFileFromSupabase(uploadedFile.id)
+      }
+
+      return uploadedFile
+    } catch (error) {
+      console.error('Save to Supabase error:', error)
+      setError(error instanceof Error ? error.message : 'Failed to save to Supabase')
+      throw error
+    } finally {
+      setUploadingToSupabase(false)
+    }
+  }
 
   // Convert Google Sheets URL to CSV export URL
   const convertToCSVUrl = (url: string): string => {
@@ -223,7 +397,7 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
     return filtered
   }, [excelData, filters])
 
-  const handleFiles = useCallback(async (files: FileList | null) => {
+  const handleFiles = useCallback(async (files: FileList | null, uploadToCloud: boolean = false) => {
     if (!files || files.length === 0) return
 
     const file = files[0]
@@ -237,6 +411,20 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
     
     if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls|csv)$/i)) {
       setError('Please upload a valid Excel file (.xlsx, .xls) or CSV file')
+      return
+    }
+
+    // If uploading to Supabase cloud storage
+    if (uploadToCloud) {
+      try {
+        const uploadedFile = await uploadToSupabase(file)
+        // Load the uploaded file immediately
+        if (uploadedFile) {
+          await loadFileFromSupabase(uploadedFile.id)
+        }
+      } catch (error) {
+        // Error is already handled in uploadToSupabase
+      }
       return
     }
 
@@ -326,12 +514,26 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
     setDragActive(false)
     
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFiles(e.dataTransfer.files)
+      handleFiles(e.dataTransfer.files, false) // Local processing by default
+    }
+  }, [handleFiles])
+
+  const handleDropCloud = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFiles(e.dataTransfer.files, true) // Upload to cloud
     }
   }, [handleFiles])
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(e.target.files)
+    handleFiles(e.target.files, false) // Local processing by default
+  }
+
+  const handleFileInputCloud = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(e.target.files, true) // Upload to cloud
   }
 
   const clearData = () => {
@@ -438,8 +640,8 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={uploadMethod} onValueChange={(value) => setUploadMethod(value as 'file' | 'url')} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
+            <Tabs value={uploadMethod} onValueChange={(value) => setUploadMethod(value as 'file' | 'url' | 'supabase')} className="w-full">
+              <TabsList className="grid w-full grid-cols-3 mb-6">
                 <TabsTrigger value="file" className="flex items-center gap-2">
                   <Upload className="h-4 w-4" />
                   Upload File
@@ -448,47 +650,108 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
                   <Globe className="h-4 w-4" />
                   Google Sheets URL
                 </TabsTrigger>
+                <TabsTrigger value="supabase" className="flex items-center gap-2">
+                  <CloudUpload className="h-4 w-4" />
+                  Cloud Storage
+                </TabsTrigger>
               </TabsList>
 
               {/* File Upload Tab */}
               <TabsContent value="file" className="space-y-4">
-                <div
-                  className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                    dragActive
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                    onChange={handleFileInput}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    disabled={loading}
-                  />
-                  
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Local Processing */}
                   <div className="space-y-4">
-                    <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Upload className="h-8 w-8 text-blue-600" />
+                    <div className="text-center">
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Process Locally</h3>
+                      <p className="text-sm text-gray-600">Upload and process file in your browser</p>
                     </div>
-                    
-                    <div>
-                      <p className="text-lg font-medium text-gray-900">
-                        {loading ? 'Processing file...' : 'Drop your Excel file here'}
-                      </p>
-                      <p className="text-gray-600 mt-1">
-                        or click to browse and select a file
-                      </p>
+                    <div
+                      className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                        dragActive
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                      onDragEnter={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDragOver={handleDrag}
+                      onDrop={handleDrop}
+                    >
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                        onChange={handleFileInput}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        disabled={loading || uploadingToSupabase}
+                      />
+                      
+                      <div className="space-y-3">
+                        <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Upload className="h-6 w-6 text-blue-600" />
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {loading ? 'Processing file...' : 'Drop file here'}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            or click to browse
+                          </p>
+                        </div>
+                        
+                        <div className="flex flex-wrap justify-center gap-1">
+                          <Badge variant="secondary" className="text-xs">.xlsx</Badge>
+                          <Badge variant="secondary" className="text-xs">.xls</Badge>
+                          <Badge variant="secondary" className="text-xs">.csv</Badge>
+                        </div>
+                      </div>
                     </div>
-                    
-                    <div className="flex flex-wrap justify-center gap-2">
-                      <Badge variant="secondary">.xlsx</Badge>
-                      <Badge variant="secondary">.xls</Badge>
-                      <Badge variant="secondary">.csv</Badge>
+                  </div>
+
+                  {/* Cloud Upload */}
+                  <div className="space-y-4">
+                    <div className="text-center">
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Save to Cloud</h3>
+                      <p className="text-sm text-gray-600">Upload to Supabase for persistent storage</p>
+                    </div>
+                    <div
+                      className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                        dragActive
+                          ? 'border-purple-500 bg-purple-50'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                      onDragEnter={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDragOver={handleDrag}
+                      onDrop={handleDropCloud}
+                    >
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                        onChange={handleFileInputCloud}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        disabled={loading || uploadingToSupabase}
+                      />
+                      
+                      <div className="space-y-3">
+                        <div className="mx-auto w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                          <CloudUpload className="h-6 w-6 text-purple-600" />
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {uploadingToSupabase ? 'Uploading...' : 'Drop file here'}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            or click to browse
+                          </p>
+                        </div>
+                        
+                        <div className="flex flex-wrap justify-center gap-1">
+                          <Badge variant="secondary" className="text-xs">.xlsx</Badge>
+                          <Badge variant="secondary" className="text-xs">.xls</Badge>
+                          <Badge variant="secondary" className="text-xs">.csv</Badge>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -520,23 +783,127 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
                       disabled={loading}
                     />
                     
-                    <Button
-                      onClick={handleGoogleSheetUrl}
-                      disabled={loading || !googleSheetUrl.trim()}
-                      className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                    >
-                      {loading ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Importing...
-                        </>
-                      ) : (
-                        <>
-                          <Download className="mr-2 h-4 w-4" />
-                          Import Data
-                        </>
-                      )}
-                    </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button
+                        onClick={handleGoogleSheetUrl}
+                        disabled={loading || !googleSheetUrl.trim()}
+                        className="h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                      >
+                        {loading ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Importing...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="mr-2 h-4 w-4" />
+                            Import & Process
+                          </>
+                        )}
+                      </Button>
+                      
+                      <Button
+                        onClick={async () => {
+                          if (!googleSheetUrl.trim()) {
+                            setError('Please enter a Google Sheets URL')
+                            return
+                          }
+                          
+                          setLoading(true)
+                          setError("")
+
+                          try {
+                            // Import the data first
+                            const csvUrl = convertToCSVUrl(googleSheetUrl)
+                            
+                            // Fetch CSV data
+                            const response = await fetch(`/api/sheets/url?url=${encodeURIComponent(csvUrl)}`)
+                            const result = await response.json()
+
+                            if (!response.ok) {
+                              throw new Error(result.error || 'Failed to fetch Google Sheets data')
+                            }
+
+                            // Parse CSV data (same logic as handleGoogleSheetUrl)
+                            const csvText = result.data
+                            const lines = csvText.split('\n').filter((line: string) => line.trim())
+                            
+                            if (lines.length === 0) {
+                              throw new Error('No data found in the Google Sheet')
+                            }
+
+                            const parseCSVLine = (line: string): string[] => {
+                              const result = []
+                              let current = ''
+                              let inQuotes = false
+                              
+                              for (let i = 0; i < line.length; i++) {
+                                const char = line[i]
+                                
+                                if (char === '"') {
+                                  inQuotes = !inQuotes
+                                } else if (char === ',' && !inQuotes) {
+                                  result.push(current.trim())
+                                  current = ''
+                                } else {
+                                  current += char
+                                }
+                              }
+                              
+                              result.push(current.trim())
+                              return result
+                            }
+
+                            const headers = parseCSVLine(lines[0])
+                            const dataRows = lines.slice(1).map((line: string) => parseCSVLine(line))
+                            
+                            // Convert to objects
+                            const formattedData = dataRows
+                              .filter((row: string[]) => row.some((cell: string) => cell && cell.trim() !== ''))
+                              .map((row: string[]) => {
+                                const obj: Record<string, any> = {}
+                                headers.forEach((header, index) => {
+                                  const key = header || `Column_${index + 1}`
+                                  obj[key] = row[index] || ''
+                                })
+                                return obj
+                              })
+
+                            const sheetData: ExcelData = {
+                              fileName: 'Google Sheet',
+                              sheetName: 'Sheet1',
+                              columns: headers.filter(header => header),
+                              data: formattedData,
+                              totalRows: formattedData.length
+                            }
+                            
+                            // Save to Supabase
+                            await saveDataToSupabase(sheetData)
+                            
+                          } catch (err) {
+                            console.error('Error processing Google Sheet:', err)
+                            setError(err instanceof Error ? err.message : 'Failed to process the Google Sheet')
+                          } finally {
+                            setLoading(false)
+                          }
+                        }}
+                        disabled={loading || uploadingToSupabase || !googleSheetUrl.trim()}
+                        variant="outline"
+                        className="h-12 border-purple-300 text-purple-700 hover:bg-purple-50"
+                      >
+                        {uploadingToSupabase ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Saving to Cloud...
+                          </>
+                        ) : (
+                          <>
+                            <CloudUpload className="mr-2 h-4 w-4" />
+                            Import & Save to Cloud
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="text-xs text-gray-500 mt-4">
@@ -550,6 +917,137 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
                       Note: The Google Sheet must be publicly accessible or shared with view permissions
                     </p>
                   </div>
+                </div>
+              </TabsContent>
+
+              {/* Cloud Storage Tab */}
+              <TabsContent value="supabase" className="space-y-6">
+                {/* Upload to Cloud Section */}
+                <div className="space-y-4">
+                  <div
+                    className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                      dragActive
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDropCloud}
+                  >
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                      onChange={handleFileInputCloud}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      disabled={loading || uploadingToSupabase}
+                    />
+                    
+                    <div className="space-y-4">
+                      <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center">
+                        <CloudUpload className="h-8 w-8 text-purple-600" />
+                      </div>
+                      
+                      <div>
+                        <p className="text-lg font-medium text-gray-900">
+                          {uploadingToSupabase ? 'Uploading to cloud...' : 'Upload file to cloud storage'}
+                        </p>
+                        <p className="text-gray-600 mt-1">
+                          Files will be saved to Supabase and accessible anytime
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-wrap justify-center gap-2">
+                        <Badge variant="secondary">.xlsx</Badge>
+                        <Badge variant="secondary">.xls</Badge>
+                        <Badge variant="secondary">.csv</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Uploaded Files List */}
+                <div className="border-2 border-gray-200 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">Your Uploaded Files</h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={loadUploadedFiles}
+                      disabled={loadingFiles}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${loadingFiles ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                  </div>
+
+                  {loadingFiles ? (
+                    <div className="flex items-center justify-center py-8">
+                      <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+                      <span className="ml-2 text-gray-600">Loading files...</span>
+                    </div>
+                  ) : uploadedFiles.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No files uploaded yet</p>
+                      <p className="text-sm">Upload a file above to get started</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {uploadedFiles.map((file) => (
+                        <div key={file.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <FileSpreadsheet className="h-4 w-4 text-blue-600" />
+                              <span className="font-medium text-gray-900">{file.originalName}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {file.fileType}
+                              </Badge>
+                              {file.sheetCount && file.sheetCount > 1 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {file.sheetCount} sheets
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              {(file.fileSize / 1024).toFixed(1)} KB • {new Date(file.uploadDate).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => loadFileFromSupabase(file.id)}
+                              disabled={loading}
+                              className="flex items-center gap-1"
+                            >
+                              <Eye className="h-4 w-4" />
+                              Load
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(`/api/files/${file.id}?action=download`, '_blank')}
+                              className="flex items-center gap-1"
+                            >
+                              <Download className="h-4 w-4" />
+                              Download
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteFile(file.id)}
+                              className="flex items-center gap-1 text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
@@ -601,6 +1099,20 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
                 >
                   <Download className="h-4 w-4" />
                   Export CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => saveDataToSupabase(excelData)}
+                  disabled={uploadingToSupabase}
+                  className="flex items-center gap-2 border-purple-300 text-purple-700 hover:bg-purple-50"
+                >
+                  {uploadingToSupabase ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CloudUpload className="h-4 w-4" />
+                  )}
+                  Save to Cloud
                 </Button>
                 <Button
                   variant="outline"
