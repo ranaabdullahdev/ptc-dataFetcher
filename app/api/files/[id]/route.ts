@@ -11,6 +11,8 @@ export async function GET(
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action') // 'metadata', 'download', 'read'
+    const searchId = searchParams.get('search')
+    const queryId = searchParams.get('id')
 
     // Get file metadata from database
     const { data: fileData, error: dbError } = await supabase
@@ -26,7 +28,58 @@ export async function GET(
       }, { status: 404 })
     }
 
-    // If only metadata is requested
+    // Search by ID in file (CSV or Excel) - this must come BEFORE metadata return
+    if (searchId !== null || queryId !== null) {
+      const searchValue = searchId || queryId
+      // Download file from storage
+      const blob = await downloadFile(fileData.file_path)
+      let rows: any[] = []
+      let columns: string[] = []
+      if (fileData.file_type === 'csv') {
+        const text = await blob.text()
+        const lines = text.split('\n').filter(line => line.trim())
+        if (lines.length === 0) {
+          return NextResponse.json({ success: false, error: 'No data found in CSV file' }, { status: 404 })
+        }
+        columns = lines[0].split(',').map(header => header.trim().replace(/"/g, ''))
+        rows = lines.slice(1).map(line => {
+          const values = line.split(',').map(value => value.trim().replace(/"/g, ''))
+          const obj: Record<string, any> = {}
+          columns.forEach((header, index) => {
+            obj[header] = values[index] || ''
+          })
+          return obj
+        })
+      } else if (fileData.file_type === 'excel') {
+        const arrayBuffer = await blob.arrayBuffer()
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+        if (jsonData.length === 0) {
+          return NextResponse.json({ success: false, error: 'No data found in Excel file' }, { status: 404 })
+        }
+        columns = jsonData[0] as string[]
+        const dataRows = jsonData.slice(1) as any[][]
+        rows = dataRows.map(row => {
+          const obj: Record<string, any> = {}
+          columns.forEach((header, index) => {
+            obj[header] = row[index] !== undefined ? row[index] : ''
+          })
+          return obj
+        })
+      } else {
+        return NextResponse.json({ success: false, error: 'Unsupported file type for search' }, { status: 400 })
+      }
+      // Find row where first column matches searchValue (case-insensitive)
+      const idColumn = columns[0]
+      const found = rows.find(row => String(row[idColumn]).toLowerCase() === String(searchValue).toLowerCase())
+      if (!found) {
+        return NextResponse.json({ success: false, error: `No data found for ID: ${searchValue}` }, { status: 404 })
+      }
+      return NextResponse.json({ success: true, data: found })
+    }
+
+    // Only return file metadata if not searching by ID
     if (action === 'metadata' || !action) {
       const file = {
         id: fileData.id,

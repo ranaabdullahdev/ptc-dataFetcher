@@ -103,6 +103,20 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
         throw new Error(result.error || `Upload failed with status ${response.status}`)
       }
 
+      // After successful upload, delete all previous files except the new one
+      try {
+        const listRes = await fetch('/api/files/list')
+        const listResult = await listRes.json()
+        if (listResult.success && listResult.files) {
+          const filesToDelete = listResult.files.filter((f: any) => f.id !== result.file.id)
+          for (const fileObj of filesToDelete) {
+            await fetch(`/api/files/${fileObj.id}`, { method: 'DELETE' })
+          }
+        }
+      } catch (cleanupErr) {
+        console.error('Error cleaning up old files:', cleanupErr)
+      }
+
       console.log('File uploaded successfully, reloading files list...')
       // Reload the files list
       await loadUploadedFiles()
