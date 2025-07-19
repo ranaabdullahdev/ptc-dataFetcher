@@ -1078,7 +1078,7 @@ export default function ExcelUploader({ onDataLoaded }: ExcelUploaderProps) {
 
       {/* Data Display */}
       {excelData && (
-        <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm">
+        <Card className="shadow-lg  border-0 bg-white/70 backdrop-blur-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>

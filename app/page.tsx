@@ -13,7 +13,7 @@ import {
  CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Cloud, Search as SearchIcon, FileSpreadsheet, ShieldCheck, Columns3, UploadCloud } from "lucide-react"
+import { Cloud, Search as SearchIcon, FileSpreadsheet, ShieldCheck, Columns3, UploadCloud, Menu } from "lucide-react"
 import ExcelUploader from "@/components/excel-uploader"
 import { X } from "lucide-react"
 
@@ -24,6 +24,7 @@ export default function LandingPage() {
   const [error, setError] = useState("")
   const [fileId, setFileId] = useState<string | null>(null)
   const [showUploader, setShowUploader] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Fetch the latest uploaded file's ID from Supabase
   useEffect(() => {
@@ -73,48 +74,86 @@ export default function LandingPage() {
     }
   }
 
+  const isLoggedIn = typeof window !== "undefined" && 
+                      typeof window.localStorage !== "undefined" && 
+                      window.localStorage.getItem("isLoggedIn") === "true"
   
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen flex px-5 flex-col bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Cloud className="h-8 w-8 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">Data Fetcher</h1>
+              <Cloud className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900">Data Fetcher</h1>
             </div>
-            <div className="flex items-center gap-2">
-             
-              {/* Logout button if isLoggedIn is true in localStorage */}
-              {typeof window !== "undefined" && typeof window.localStorage !== "undefined" && window.localStorage.getItem("isLoggedIn") === "true" && (
-               
-               <>
-               <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    localStorage.clear()
-                    window.location.reload()
-                  }}
-                  className="flex items-center gap-2"
+            
+            {isLoggedIn && (
+              <>
+                {/* Mobile menu button */}
+                <div className="sm:hidden">
+                  <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </div>
+                
+                {/* Desktop buttons */}
+                <div className="hidden sm:flex items-center gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      localStorage.clear()
+                      window.location.reload()
+                    }}
+                    className="flex items-center gap-2"
                   >
-                  Logout
-                </Button>
-                <Button
+                    Logout
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowUploader(true)}
+                    className="flex items-center gap-2"
+                  >
+                    Upload File
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+          
+          {/* Mobile menu */}
+          {mobileMenuOpen && isLoggedIn && (
+            <div className="sm:hidden pt-3 pb-2 border-t mt-3 space-y-2">
+              <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowUploader(true)}
-                className="flex items-center gap-2"
+                onClick={() => {
+                  setShowUploader(true)
+                  setMobileMenuOpen(false)
+                }}
+                className="w-full flex items-center justify-center gap-2"
               >
+                <UploadCloud className="h-4 w-4" />
                 Upload File
               </Button>
-                  </>
-              )}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  localStorage.clear()
+                  window.location.reload()
+                }}
+                className="w-full flex items-center justify-center gap-2"
+              >
+                Logout
+              </Button>
             </div>
-          </div>
+          )}
         </div>
       </header>
-      <main className="container mx-auto px-4 py-8 max-w-2xl flex-1 w-full">
+      <main className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 flex-1 w-full">
         {showUploader ? (
           <div className="mb-8">
             <div className="flex justify-end mb-2">
@@ -131,44 +170,44 @@ export default function LandingPage() {
         ) : (
           <>
             {/* Hero Section */}
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
-                <FileSpreadsheet className="h-4 w-4" />
-                Secure, Fast, and Flexible Data Search
+            <div className="text-center mb-8 sm:mb-12">
+              <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium mb-4 sm:mb-6">
+                <FileSpreadsheet className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="line-clamp-1">Secure, Fast, and Flexible Data Search</span>
               </div>
-              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4 leading-tight">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 sm:mb-4 leading-tight">
                 Search Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">Supabase Files</span>
               </h2>
-              <p className="text-lg text-gray-600 mb-4 max-w-xl mx-auto">
-                Instantly find and view all columns for any ID in your uploaded Excel or CSV files. Powered by secure cloud storage and a modern UI.
+              <p className="text-base sm:text-lg text-gray-600 mb-3 sm:mb-4 max-w-xl mx-auto px-1">
+                Instantly find and view all columns for any ID in your uploaded Excel or CSV files.
               </p>
             </div>
             {/* Search Card */}
-            <Card className="mb-8 shadow-lg border-0 bg-white/70 backdrop-blur-sm">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl flex items-center justify-center gap-2">
-                  <SearchIcon className="h-6 w-6 text-blue-600" />
-                  Search by ID (Supabase File)
+            <Card className="mb-6 sm:mb-8 shadow-lg border-0 bg-white/70 backdrop-blur-sm">
+              <CardHeader className="text-center px-4 sm:px-6 py-4 sm:py-6">
+                <CardTitle className="text-xl sm:text-2xl flex items-center justify-center gap-2">
+                  <SearchIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+                  Search by ID
                 </CardTitle>
-                <CardDescription>Enter the ID you want to search in the latest uploaded file</CardDescription>
+                <CardDescription className="text-sm sm:text-base">Enter the ID you want to search</CardDescription>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSearch} className="space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-4">
+              <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                <form onSubmit={handleSearch} className="space-y-3 sm:space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                     <div className="flex-1">
                       <Input
                         type="text"
                         placeholder="Enter ID (e.g., USER001)"
                         value={searchId}
                         onChange={(e) => setSearchId(e.target.value)}
-                        className="h-12 text-lg"
+                        className="h-10 sm:h-12 text-base sm:text-lg"
                         disabled={loading}
                       />
                     </div>
                     <Button
                       type="submit"
                       disabled={loading || !searchId.trim()}
-                      className="h-12 px-8 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                      className="h-10 sm:h-12 px-4 sm:px-8 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm sm:text-base"
                     >
                       {loading ? "Searching..." : "Search"}
                     </Button>
@@ -178,70 +217,82 @@ export default function LandingPage() {
             </Card>
             {/* Error Display */}
             {error && (
-              <Alert className="mb-8 border-red-200 bg-red-50">
-                <AlertDescription className="text-red-800">{error}</AlertDescription>
+              <Alert className="mb-6 sm:mb-8 border-red-200 bg-red-50">
+                <AlertDescription className="text-red-800 text-sm sm:text-base">{error}</AlertDescription>
               </Alert>
             )}
             {/* Results Display */}
             {data && (
-              <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="text-xl">Search Results</CardTitle>
-                  <CardDescription>Data retrieved from Supabase file for ID: {searchId}</CardDescription>
+              <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm overflow-hidden">
+                <CardHeader className="px-4 sm:px-6 py-4 sm:py-6">
+                  <CardTitle className="text-lg sm:text-xl">Search Results</CardTitle>
+                  <CardDescription className="text-sm sm:text-base">Data retrieved for ID: {searchId}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4">
-                    {Object.entries(data).map(([key, value]) => (
-                      <div
-                        key={key}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-gray-50 rounded-lg"
-                      >
-                        <span className="font-medium text-gray-700 capitalize mb-1 sm:mb-0">
-                          {key.replace(/([A-Z])/g, " $1").trim()}:
-                        </span>
-                        <span className="text-gray-900 font-mono bg-white px-3 py-1 rounded border">
-                          {String(value)}
-                        </span>
-                      </div>
-                    ))}
+                <CardContent className="px-3 sm:px-6 pb-4 sm:pb-6">
+                  <div className="grid gap-3 sm:gap-4 max-w-full overflow-x-auto">
+                    {Object.entries(data).map(([key, value]) => {
+                      const isRemainingTarget = key === "Remaining Target (cans)";
+                      const isZeroOrLess = isRemainingTarget && Number(value) <= 0;
+                      const isTargetAchievement = key === "Target Acheivemt";
+                      const isTargetN = isTargetAchievement && value === "N";
+                      const isTargetY = isTargetAchievement && value === "Y";
+                      let bgClass = "bg-gray-50";
+                      let valueClass = "bg-white text-gray-900";
+                      let labelClass = "text-gray-700";
+                      if (isRemainingTarget) {
+                        if (isZeroOrLess) {
+                          bgClass = "bg-green-500";
+                          valueClass = "bg-green-600 text-white border-green-700";
+                          labelClass = "text-white";
+                        } else {
+                          bgClass = "bg-red-500";
+                          valueClass = "bg-red-600 text-white border-red-700";
+                          labelClass = "text-white";
+                        }
+                      } else if (isTargetAchievement) {
+                        if (isTargetN) {
+                          bgClass = "bg-red-500";
+                          valueClass = "bg-red-600 text-white border-red-700";
+                          labelClass = "text-white";
+                        } else if (isTargetY) {
+                          bgClass = "bg-green-500";
+                          valueClass = "bg-green-600 text-white border-green-700";
+                          labelClass = "text-white";
+                        }
+                      }
+                      return (
+                        <div
+                          key={key}
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 ${bgClass} rounded-lg`}
+                        >
+                          <span className={`font-medium capitalize mb-1.5 sm:mb-0 text-sm sm:text-base ${labelClass}`}>
+                            {key.replace(/([A-Z])/g, " $1").trim()}:
+                          </span>
+                          <span className={`font-mono text-sm px-2 sm:px-3 py-1 rounded border break-all sm:break-normal ${valueClass}`}>
+                            {String(value)}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
             )}
-            {/* Features Section */}
-            <div className="mt-16 grid md:grid-cols-2 gap-8">
-              <div className="flex flex-col items-center text-center p-6 bg-white/60 rounded-lg shadow">
-                <ShieldCheck className="h-10 w-10 text-blue-600 mb-2" />
-                <h3 className="text-lg font-semibold mb-1">Secure Cloud Storage</h3>
-                <p className="text-gray-600">Your files are safely stored and processed in Supabase cloud storage.</p>
-              </div>
-              <div className="flex flex-col items-center text-center p-6 bg-white/60 rounded-lg shadow">
-                <SearchIcon className="h-10 w-10 text-purple-600 mb-2" />
-                <h3 className="text-lg font-semibold mb-1">Fast ID Search</h3>
-                <p className="text-gray-600">Find any row by ID instantly, even in large Excel or CSV files.</p>
-              </div>
-              <div className="flex flex-col items-center text-center p-6 bg-white/60 rounded-lg shadow">
-                <Columns3 className="h-10 w-10 text-green-600 mb-2" />
-                <h3 className="text-lg font-semibold mb-1">All Columns Displayed</h3>
-                <p className="text-gray-600">See every column for your ID, with a clean and readable layout.</p>
-              </div>
-              <div className="flex flex-col items-center text-center p-6 bg-white/60 rounded-lg shadow">
-                <UploadCloud className="h-10 w-10 text-orange-600 mb-2" />
-                <h3 className="text-lg font-semibold mb-1">Easy Excel/CSV Upload</h3>
-                <p className="text-gray-600">Upload your Excel or CSV files and start searching in seconds.</p>
-              </div>
-            </div>
+          
           </>
         )}
-      </main>
-      {/* Footer */}
-      <footer className="border-t bg-white/80 backdrop-blur-sm mt-16">
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center text-gray-600">
-            <p>&copy; {new Date().getFullYear()} Data Fetcher. Secure, fast, and flexible data search.</p>
-          </div>
-        </div>
-      </footer>
+   </main>
+   {/* Footer */}
+   <footer className="border-t bg-white/80 backdrop-blur-sm mt-16">
+    <div className="container mx-auto px-4 py-8">
+     <div className="text-center text-gray-600">
+      <p>
+       &copy; {new Date().getFullYear()} Data Fetcher. Secure, fast, and
+       flexible data search.
+      </p>
+     </div>
     </div>
-  )
+   </footer>
+  </div>
+ );
 }
