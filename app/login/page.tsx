@@ -18,7 +18,7 @@ interface LoginFormInputs {
 
 export default function LoginPage() {
   const form = useForm<LoginFormInputs>({
-    defaultValues: { email: "huzaifa.altaf@gmail.com", password: "12345678" },
+    defaultValues: { email: "huzaifa.altaf@gmail.com", password: "" },
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
