@@ -231,9 +231,10 @@ export default function LandingPage() {
                 <CardContent className="px-3 sm:px-6 pb-4 sm:pb-6">
                   <div className="grid gap-3 sm:gap-4 max-w-full overflow-x-auto">
                     {Object.entries(data).map(([key, value]) => {
-                      const isRemainingTarget = key === "Remaining Target (cans)";
+                      console.log(key,'KEY')
+                      const isRemainingTarget = key === "Remaining Target(Cans)";
                       const isZeroOrLess = isRemainingTarget && Number(value) <= 0;
-                      const isTargetAchievement = key === "Target Acheivemt";
+                      const isTargetAchievement = key === "Target Acheivement";
                       const isTargetN = isTargetAchievement && value === "N";
                       const isTargetY = isTargetAchievement && value === "Y";
                       let bgClass = "bg-gray-50";
