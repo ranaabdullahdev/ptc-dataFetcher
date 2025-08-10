@@ -283,7 +283,7 @@ export async function DELETE(
 
     // Delete file from storage
     const { error: storageError } = await supabase.storage
-      .from('uploaded-files')
+      .from('uploaded-files-dr')
       .remove([fileData.file_path])
 
     if (storageError) {

@@ -6,7 +6,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Storage bucket name for uploaded files
-export const STORAGE_BUCKET = 'uploaded-files'
+export const STORAGE_BUCKET = 'uploaded-files-dr'
 
 // Helper function to get public URL for a file
 export const getPublicUrl = (filePath: string) => {
