@@ -21,6 +21,7 @@ export default function LandingPage() {
   const [searchId, setSearchId] = useState("")
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<any | null>(null)
+  const [multiTabData, setMultiTabData] = useState<any[] | null>(null)
   const [error, setError] = useState("")
   const [fileId, setFileId] = useState<string | null>(null)
   const [showUploader, setShowUploader] = useState(false)
@@ -48,6 +49,7 @@ export default function LandingPage() {
     e.preventDefault()
     setError("")
     setData(null)
+    setMultiTabData(null)
     if (!searchId.trim()) return
     setLoading(true)
     try {
@@ -66,7 +68,15 @@ export default function LandingPage() {
       if (!response.ok || !searchResult.success) {
         throw new Error(searchResult.error || "No data found for this ID.")
       }
-      setData(searchResult.data)
+      
+      // Handle multi-tab results
+      if ((searchResult.multipleTabs || searchResult.multipleSheets) && (searchResult.tabs || searchResult.sheets)) {
+        setMultiTabData(searchResult.tabs || searchResult.sheets)
+        setData(null)
+      } else {
+        setData(searchResult.data)
+        setMultiTabData(null)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred")
     } finally {
@@ -222,62 +232,142 @@ export default function LandingPage() {
               </Alert>
             )}
             {/* Results Display */}
-            {data && (
-              <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm overflow-hidden">
-                <CardHeader className="px-4 sm:px-6 py-4 sm:py-6">
-                  <CardTitle className="text-lg sm:text-xl">Search Results</CardTitle>
-                  <CardDescription className="text-sm sm:text-base">Data retrieved for ID: {searchId}</CardDescription>
-                </CardHeader>
-                <CardContent className="px-3 sm:px-6 pb-4 sm:pb-6">
-                  <div className="grid gap-3 sm:gap-4 max-w-full overflow-x-auto">
-                    {Object.entries(data).map(([key, value]) => {
-                      console.log(key,'KEY')
-                      const isRemainingTarget = key === "Remaining Target(Cans)";
-                      const isZeroOrLess = isRemainingTarget && Number(value) <= 0;
-                      const isTargetAchievement = key === "Target Acheivement";
-                      const isTargetN = isTargetAchievement && value === "N";
-                      const isTargetY = isTargetAchievement && value === "Y";
-                      let bgClass = "bg-gray-50";
-                      let valueClass = "bg-white text-gray-900";
-                      let labelClass = "text-gray-700";
-                      if (isRemainingTarget) {
-                        if (isZeroOrLess) {
-                          bgClass = "bg-green-500";
-                          valueClass = "bg-green-600 text-white border-green-700";
-                          labelClass = "text-white";
-                        } else {
-                          bgClass = "bg-red-500";
-                          valueClass = "bg-red-600 text-white border-red-700";
-                          labelClass = "text-white";
-                        }
-                      } else if (isTargetAchievement) {
-                        if (isTargetN) {
-                          bgClass = "bg-red-500";
-                          valueClass = "bg-red-600 text-white border-red-700";
-                          labelClass = "text-white";
-                        } else if (isTargetY) {
-                          bgClass = "bg-green-500";
-                          valueClass = "bg-green-600 text-white border-green-700";
-                          labelClass = "text-white";
-                        }
-                      }
-                      return (
-                        <div
-                          key={key}
-                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 ${bgClass} rounded-lg`}
-                        >
-                          <span className={`font-medium capitalize mb-1.5 sm:mb-0 text-sm sm:text-base ${labelClass}`}>
-                            {key.replace(/([A-Z])/g, " $1").trim()}:
-                          </span>
-                          <span className={`font-mono text-sm px-2 sm:px-3 py-1 rounded border break-all sm:break-normal ${valueClass}`}>
-                            {String(value)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
+            {(data || multiTabData) && (
+              <div className="space-y-6">
+                {/* Single Tab Results */}
+                {data && !multiTabData && (
+                  <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm overflow-hidden">
+                    <CardHeader className="px-4 sm:px-6 py-4 sm:py-6">
+                      <CardTitle className="text-lg sm:text-xl">Search Results</CardTitle>
+                      <CardDescription className="text-sm sm:text-base">Data retrieved for ID: {searchId}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 sm:px-6 pb-4 sm:pb-6">
+                      <div className="grid gap-3 sm:gap-4 max-w-full overflow-x-auto">
+                        {Object.entries(data).map(([key, value]) => {
+                          const isRemainingTarget = key === "Remaining Target(Cans)";
+                          const isZeroOrLess = isRemainingTarget && Number(value) <= 0;
+                          const isTargetAchievement = key === "Target Acheivement";
+                          const isTargetN = isTargetAchievement && value === "N";
+                          const isTargetY = isTargetAchievement && value === "Y";
+                          let bgClass = "bg-gray-50";
+                          let valueClass = "bg-white text-gray-900";
+                          let labelClass = "text-gray-700";
+                          if (isRemainingTarget) {
+                            if (isZeroOrLess) {
+                              bgClass = "bg-green-500";
+                              valueClass = "bg-green-600 text-white border-green-700";
+                              labelClass = "text-white";
+                            } else {
+                              bgClass = "bg-red-500";
+                              valueClass = "bg-red-600 text-white border-red-700";
+                              labelClass = "text-white";
+                            }
+                          } else if (isTargetAchievement) {
+                            if (isTargetN) {
+                              bgClass = "bg-red-500";
+                              valueClass = "bg-red-600 text-white border-red-700";
+                              labelClass = "text-white";
+                            } else if (isTargetY) {
+                              bgClass = "bg-green-500";
+                              valueClass = "bg-green-600 text-white border-green-700";
+                              labelClass = "text-white";
+                            }
+                          }
+                          return (
+                            <div
+                              key={key}
+                              className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 ${bgClass} rounded-lg`}
+                            >
+                              <span className={`font-medium capitalize mb-1.5 sm:mb-0 text-sm sm:text-base ${labelClass}`}>
+                                {key.replace(/([A-Z])/g, " $1").trim()}:
+                              </span>
+                              <span className={`font-mono text-sm px-2 sm:px-3 py-1 rounded border break-all sm:break-normal ${valueClass}`}>
+                                {String(value)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Multi-Tab Results */}
+                {multiTabData && multiTabData.length > 0 && (
+                  <>
+                    <div className="text-center mb-4">
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                        Multi-Tab Search Results
+                      </h3>
+                      <p className="text-gray-600">
+                        Found data for ID "{searchId}" in {multiTabData.length} tab{multiTabData.length !== 1 ? 's' : ''} of your Excel file
+                      </p>
+                    </div>
+                    
+                    {multiTabData.map((sheet, sheetIndex) => (
+                      <Card key={sheetIndex} className="shadow-lg border-0 bg-white/70 backdrop-blur-sm overflow-hidden">
+                        <CardHeader className="px-4 sm:px-6 py-4 sm:py-6 bg-gradient-to-r from-blue-50 to-purple-50">
+                          <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
+                            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                            {sheet.sheetName}
+                          </CardTitle>
+                          <CardDescription className="text-sm sm:text-base">
+                            Data from tab: {sheet.sheetName} | Searched column: {sheet.searchedColumn}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="px-3 sm:px-6 pb-4 sm:pb-6">
+                          <div className="grid gap-3 sm:gap-4 max-w-full overflow-x-auto">
+                            {Object.entries(sheet.data).map(([key, value]) => {
+                              const isRemainingTarget = key === "Remaining Target(Cans)";
+                              const isZeroOrLess = isRemainingTarget && Number(value) <= 0;
+                              const isTargetAchievement = key === "Target Acheivement";
+                              const isTargetN = isTargetAchievement && value === "N";
+                              const isTargetY = isTargetAchievement && value === "Y";
+                              let bgClass = "bg-gray-50";
+                              let valueClass = "bg-white text-gray-900";
+                              let labelClass = "text-gray-700";
+                              if (isRemainingTarget) {
+                                if (isZeroOrLess) {
+                                  bgClass = "bg-green-500";
+                                  valueClass = "bg-green-600 text-white border-green-700";
+                                  labelClass = "text-white";
+                                } else {
+                                  bgClass = "bg-red-500";
+                                  valueClass = "bg-red-600 text-white border-red-700";
+                                  labelClass = "text-white";
+                                }
+                              } else if (isTargetAchievement) {
+                                if (isTargetN) {
+                                  bgClass = "bg-red-500";
+                                  valueClass = "bg-red-600 text-white border-red-700";
+                                  labelClass = "text-white";
+                                } else if (isTargetY) {
+                                  bgClass = "bg-green-500";
+                                  valueClass = "bg-green-600 text-white border-green-700";
+                                  labelClass = "text-white";
+                                }
+                              }
+                              return (
+                                <div
+                                  key={key}
+                                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 ${bgClass} rounded-lg`}
+                                >
+                                  <span className={`font-medium capitalize mb-1.5 sm:mb-0 text-sm sm:text-base ${labelClass}`}>
+                                    {key.replace(/([A-Z])/g, " $1").trim()}:
+                                  </span>
+                                  <span className={`font-mono text-sm px-2 sm:px-3 py-1 rounded border break-all sm:break-normal ${valueClass}`}>
+                                    {String(value)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </>
+                )}
+              </div>
             )}
           
           </>

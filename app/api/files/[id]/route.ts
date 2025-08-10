@@ -34,16 +34,16 @@ export async function GET(
       const searchValue = searchId || queryId || uppercaseId
       // Download file from storage
       const blob = await downloadFile(fileData.file_path)
-      let rows: any[] = []
-      let columns: string[] = []
+      let allResults: any[] = []
+      
       if (fileData.file_type === 'csv') {
         const text = await blob.text()
         const lines = text.split('\n').filter(line => line.trim())
         if (lines.length === 0) {
           return NextResponse.json({ success: false, error: 'No data found in CSV file' }, { status: 404 })
         }
-        columns = lines[0].split(',').map(header => header.trim().replace(/"/g, ''))
-        rows = lines.slice(1).map(line => {
+        const columns = lines[0].split(',').map(header => header.trim().replace(/"/g, ''))
+        const rows = lines.slice(1).map(line => {
           const values = line.split(',').map(value => value.trim().replace(/"/g, ''))
           const obj: Record<string, any> = {}
           columns.forEach((header, index) => {
@@ -51,44 +51,74 @@ export async function GET(
           })
           return obj
         })
+        
+        // Find the ID column - look for common ID column names or use first column as fallback
+        const possibleIdColumns = ['id', 'ID', 'Id', 'iD']
+        let idColumn = columns.find(col => possibleIdColumns.includes(col)) || columns[0]
+        
+        // Find row where ID column matches searchValue (case-insensitive)
+        const found = rows.find(row => String(row[idColumn]).toLowerCase() === String(searchValue).toLowerCase())
+        if (found) {
+          allResults.push({
+            sheetName: 'Sheet1',
+            data: found,
+            searchedColumn: idColumn
+          })
+        }
       } else if (fileData.file_type === 'excel') {
         const arrayBuffer = await blob.arrayBuffer()
         const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-        if (jsonData.length === 0) {
-          return NextResponse.json({ success: false, error: 'No data found in Excel file' }, { status: 404 })
-        }
-        columns = jsonData[0] as string[]
-        const dataRows = jsonData.slice(1) as any[][]
-        rows = dataRows.map(row => {
-          const obj: Record<string, any> = {}
-          columns.forEach((header, index) => {
-            obj[header] = row[index] !== undefined ? row[index] : ''
+        
+        // Search across all sheets
+        for (const sheetName of workbook.SheetNames) {
+          const worksheet = workbook.Sheets[sheetName]
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+          
+          if (jsonData.length === 0) continue
+          
+          const columns = jsonData[0] as string[]
+          const dataRows = jsonData.slice(1) as any[][]
+          const rows = dataRows.map(row => {
+            const obj: Record<string, any> = {}
+            columns.forEach((header, index) => {
+              obj[header] = row[index] !== undefined ? row[index] : ''
+            })
+            return obj
           })
-          return obj
-        })
+          
+          // Find the ID column - look for common ID column names or use first column as fallback
+          const possibleIdColumns = ['id', 'ID', 'Id', 'iD']
+          let idColumn = columns.find(col => possibleIdColumns.includes(col)) || columns[0]
+          
+          // Find row where ID column matches searchValue (case-insensitive)
+          const found = rows.find(row => String(row[idColumn]).toLowerCase() === String(searchValue).toLowerCase())
+          if (found) {
+            allResults.push({
+              sheetName,
+              data: found,
+              searchedColumn: idColumn
+            })
+          }
+        }
       } else {
         return NextResponse.json({ success: false, error: 'Unsupported file type for search' }, { status: 400 })
       }
-      // Find the ID column - look for common ID column names or use first column as fallback
-      const possibleIdColumns = ['id', 'ID', 'Id', 'iD']
-      let idColumn = columns.find(col => possibleIdColumns.includes(col)) || columns[0]
       
-      // Find row where ID column matches searchValue (case-insensitive)
-      const found = rows.find(row => String(row[idColumn]).toLowerCase() === String(searchValue).toLowerCase())
-      if (!found) {
+      if (allResults.length === 0) {
         return NextResponse.json({ 
           success: false, 
           error: `No data found for ID: ${searchValue}`,
-          searchedColumn: idColumn,
-          availableColumns: columns
+          searchedValue: searchValue
         }, { status: 404 })
       }
+      
       return NextResponse.json({ 
         success: true, 
-        data: found,
-        searchedColumn: idColumn,
+        data: allResults.length === 1 ? allResults[0].data : allResults,
+        multipleSheets: allResults.length > 1,
+        multipleTabs: allResults.length > 1,
+        sheets: allResults,
+        tabs: allResults,
         searchedValue: searchValue
       })
     }
