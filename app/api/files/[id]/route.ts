@@ -69,7 +69,11 @@ export async function GET(
         const arrayBuffer = await blob.arrayBuffer()
         const workbook = XLSX.read(arrayBuffer, { type: 'array' })
         
-        // Search across all sheets
+        // Collect data from all sheets for the specific searched ID
+        const sheetResults: Record<string, any> = {}
+        let searchedColumn = ''
+        let foundMatchingId = false
+        
         for (const sheetName of workbook.SheetNames) {
           const worksheet = workbook.Sheets[sheetName]
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
@@ -78,28 +82,66 @@ export async function GET(
           
           const columns = jsonData[0] as string[]
           const dataRows = jsonData.slice(1) as any[][]
-          const rows = dataRows.map(row => {
-            const obj: Record<string, any> = {}
-            columns.forEach((header, index) => {
-              obj[header] = row[index] !== undefined ? row[index] : ''
-            })
-            return obj
-          })
           
-          // Find the ID column - look for common ID column names or use first column as fallback
+          // Find the ID column
           const possibleIdColumns = ['id', 'ID', 'Id', 'iD']
           let idColumn = columns.find(col => possibleIdColumns.includes(col)) || columns[0]
           
-          // Find row where ID column matches searchValue (case-insensitive)
-          const found = rows.find(row => String(row[idColumn]).toLowerCase() === String(searchValue).toLowerCase())
-          if (found) {
-            allResults.push({
-              sheetName,
-              data: found,
-              searchedColumn: idColumn
+          // Store the searched column info from first match
+          if (!searchedColumn) {
+            searchedColumn = idColumn
+          }
+          
+          // Find the row that matches the searched ID
+          for (const row of dataRows) {
+            const rowObj: Record<string, any> = {}
+            columns.forEach((header, index) => {
+              rowObj[header] = row[index] !== undefined ? row[index] : ''
             })
+            
+            // Check if this row matches the searched ID
+            if (String(rowObj[idColumn]).toLowerCase() === String(searchValue).toLowerCase()) {
+              foundMatchingId = true
+              
+              // Extract all columns except the ID column as brand data
+              const brandData: Record<string, any> = {}
+              columns.forEach((columnName, index) => {
+                if (columnName && columnName.toLowerCase() !== idColumn.toLowerCase()) {
+                  const value = row[index]
+                  if (value !== undefined && value !== null && value !== '') {
+                    brandData[columnName] = value
+                  }
+                }
+              })
+              
+              // Store the data for this sheet
+              sheetResults[sheetName] = {
+                sheetName: sheetName,
+                brandData: brandData,
+                allColumns: columns.filter(col => col && col.toLowerCase() !== idColumn.toLowerCase())
+              }
+              
+              allResults.push({
+                sheetName,
+                data: rowObj,
+                searchedColumn: idColumn
+              })
+            }
           }
         }
+        
+        // Return data if the searched ID was found
+        if (foundMatchingId && Object.keys(sheetResults).length > 0) {
+          return NextResponse.json({ 
+            success: true, 
+            data: sheetResults,
+            tableFormat: true,
+            searchedValue: searchValue,
+            sheetsFound: allResults.length,
+            sheetNames: Object.keys(sheetResults)
+          })
+        }
+        
       } else {
         return NextResponse.json({ success: false, error: 'Unsupported file type for search' }, { status: 400 })
       }
@@ -316,4 +358,4 @@ export async function DELETE(
       error: error instanceof Error ? error.message : 'Failed to delete file'
     }, { status: 500 })
   }
-} 
+}

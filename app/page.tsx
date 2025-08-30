@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Cloud, Search as SearchIcon, FileSpreadsheet, ShieldCheck, Columns3, UploadCloud, Menu } from "lucide-react"
 import ExcelUploader from "@/components/excel-uploader"
 import { X } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 export default function LandingPage() {
   const [searchId, setSearchId] = useState("")
@@ -69,8 +70,18 @@ export default function LandingPage() {
         throw new Error(searchResult.error || "No data found for this ID.")
       }
       
-      // Handle multi-tab results
-      if ((searchResult.multipleTabs || searchResult.multipleSheets) && (searchResult.tabs || searchResult.sheets)) {
+      // Handle table format data (new format for brand-based display)
+      if (searchResult.tableFormat) {
+        setData(searchResult.data)
+        setMultiTabData(null)
+      }
+      // Handle combined data from multiple tabs (unified format)
+      else if (searchResult.combinedData) {
+        setData(searchResult.data)
+        setMultiTabData(null)
+      }
+      // Handle multi-tab results (legacy format)
+      else if ((searchResult.multipleTabs || searchResult.multipleSheets) && (searchResult.tabs || searchResult.sheets)) {
         setMultiTabData(searchResult.tabs || searchResult.sheets)
         setData(null)
       } else {
@@ -192,34 +203,56 @@ export default function LandingPage() {
                 Instantly find and view all columns for any ID in your uploaded Excel or CSV files.
               </p>
             </div>
-            {/* Search Card */}
-            <Card className="mb-6 sm:mb-8 shadow-lg border-0 bg-white/70 backdrop-blur-sm">
-              <CardHeader className="text-center px-4 sm:px-6 py-4 sm:py-6">
-                <CardTitle className="text-xl sm:text-2xl flex items-center justify-center gap-2">
-                  <SearchIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+            {/* Mobile-Optimized Search Card */}
+            <Card className="mb-6 shadow-lg border-0 bg-white/70 backdrop-blur-sm">
+              <CardHeader className="text-center px-4 py-4">
+                <CardTitle className="text-lg flex items-center justify-center gap-2">
+                  <SearchIcon className="h-5 w-5 text-blue-600 flex-shrink-0" />
                   Search by ID
                 </CardTitle>
-                <CardDescription className="text-sm sm:text-base">Enter the ID you want to search</CardDescription>
+                <CardDescription className="text-sm">Enter the ID you want to search for</CardDescription>
               </CardHeader>
-              <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-                <form onSubmit={handleSearch} className="space-y-3 sm:space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                    <div className="flex-1">
+              <CardContent className="px-4 pb-4">
+                <form onSubmit={handleSearch} className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="relative">
                       <Input
                         type="text"
-                        placeholder="Enter ID (e.g., USER001)"
+                        placeholder="Enter ID (e.g., lhr_ksr_dr01)"
                         value={searchId}
                         onChange={(e) => setSearchId(e.target.value)}
-                        className="h-10 sm:h-12 text-base sm:text-lg"
+                        className="h-12 text-base pl-4 pr-4 rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 touch-manipulation"
                         disabled={loading}
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        autoCorrect="off"
                       />
+                      {searchId && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchId('')}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 touch-manipulation"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      )}
                     </div>
                     <Button
                       type="submit"
                       disabled={loading || !searchId.trim()}
-                      className="h-10 sm:h-12 px-4 sm:px-8 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm sm:text-base"
+                      className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-base font-semibold rounded-xl shadow-lg touch-manipulation"
                     >
-                      {loading ? "Searching..." : "Search"}
+                      {loading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Searching...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <SearchIcon className="h-5 w-5" />
+                          Search Data
+                        </div>
+                      )}
                     </Button>
                   </div>
                 </form>
@@ -234,139 +267,159 @@ export default function LandingPage() {
             {/* Results Display */}
             {(data || multiTabData) && (
               <div className="space-y-6">
-                {/* Single Tab Results */}
-                {data && !multiTabData && (
+                {/* Table Format Results (Parallel sheet data display) */}
+                {data && !Array.isArray(data) && typeof data === 'object' && Object.keys(data).length > 0 && (
                   <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm overflow-hidden">
-                    <CardHeader className="px-4 sm:px-6 py-4 sm:py-6">
-                      <CardTitle className="text-lg sm:text-xl">Search Results</CardTitle>
-                      <CardDescription className="text-sm sm:text-base">Data retrieved for ID: {searchId}</CardDescription>
+                    <CardHeader className="px-3 py-4 bg-gradient-to-r from-blue-50 to-purple-50">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileSpreadsheet className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                        <span className="truncate">Data for ID: {searchId}</span>
+                      </CardTitle>
+                      <CardDescription className="text-sm">
+                        {Object.keys(data).length} sheet{Object.keys(data).length !== 1 ? 's' : ''} • Compact view for mobile
+                      </CardDescription>
                     </CardHeader>
-                    <CardContent className="px-3 sm:px-6 pb-4 sm:pb-6">
-                      <div className="grid gap-3 sm:gap-4 max-w-full overflow-x-auto">
-                        {Object.entries(data).map(([key, value]) => {
-                          const isRemainingTarget = key === "Remaining Target(Cans)";
-                          const isZeroOrLess = isRemainingTarget && Number(value) <= 0;
-                          const isTargetAchievement = key === "Target Acheivement";
-                          const isTargetN = isTargetAchievement && value === "N";
-                          const isTargetY = isTargetAchievement && value === "Y";
-                          let bgClass = "bg-gray-50";
-                          let valueClass = "bg-white text-gray-900";
-                          let labelClass = "text-gray-700";
-                          if (isRemainingTarget) {
-                            if (isZeroOrLess) {
-                              bgClass = "bg-green-500";
-                              valueClass = "bg-green-600 text-white border-green-700";
-                              labelClass = "text-white";
-                            } else {
-                              bgClass = "bg-red-500";
-                              valueClass = "bg-red-600 text-white border-red-700";
-                              labelClass = "text-white";
-                            }
-                          } else if (isTargetAchievement) {
-                            if (isTargetN) {
-                              bgClass = "bg-red-500";
-                              valueClass = "bg-red-600 text-white border-red-700";
-                              labelClass = "text-white";
-                            } else if (isTargetY) {
-                              bgClass = "bg-green-500";
-                              valueClass = "bg-green-600 text-white border-green-700";
-                              labelClass = "text-white";
-                            }
+                    <CardContent className="p-0">
+                      {(() => {
+                        // Collect all unique brand/column names while preserving original order
+                        const allBrands: string[] = [];
+                        const sheetNames = Object.keys(data);
+                        
+                        // Get brands from first sheet to establish order, then add any missing from other sheets
+                        sheetNames.forEach(sheetName => {
+                          const sheetData = data[sheetName];
+                          if (sheetData.brandData) {
+                            Object.keys(sheetData.brandData).forEach(brand => {
+                              if (!allBrands.includes(brand)) {
+                                allBrands.push(brand);
+                              }
+                            });
                           }
+                        });
+                        
+                        const brandList = allBrands;
+                        
+                        if (brandList.length === 0) {
                           return (
-                            <div
-                              key={key}
-                              className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 ${bgClass} rounded-lg`}
-                            >
-                              <span className={`font-medium capitalize mb-1.5 sm:mb-0 text-sm sm:text-base ${labelClass}`}>
-                                {key.replace(/([A-Z])/g, " $1").trim()}:
-                              </span>
-                              <span className={`font-mono text-sm px-2 sm:px-3 py-1 rounded border break-all sm:break-normal ${valueClass}`}>
-                                {String(value)}
-                              </span>
+                            <div className="text-center py-12 px-4 text-gray-500">
+                              <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                              <p className="text-lg font-medium">No data found</p>
+                              <p className="text-sm">No data found for this ID across all sheets</p>
                             </div>
                           );
-                        })}
-                      </div>
+                        }
+                        
+                                                return (
+                          <div className="w-full">
+                            <Table className="w-full">
+                              <TableHeader>
+                                <TableRow className="bg-gradient-to-r from-blue-50 to-purple-50">
+                                  <TableHead className="font-bold text-blue-800 sticky left-0 bg-blue-50 z-10 w-[30%] px-1 py-2 text-xs border-r border-blue-200">
+                                    Brand
+                                  </TableHead>
+                                  {sheetNames.map((sheetName, index) => (
+                                    <TableHead key={sheetName} className={`font-bold text-center w-[${70/sheetNames.length}%] px-1 py-2 text-xs ${
+                                      index === 0 ? 'text-green-800' : 
+                                      index === 1 ? 'text-purple-800' : 
+                                      index === 2 ? 'text-orange-800' :
+                                      'text-blue-800'
+                                    }`}>
+                                      <div className="flex flex-col items-center">
+                                        <span className="font-bold truncate">{sheetName}</span>
+                                        {/* {sheetName.toLowerCase() === 'left' && (
+                                          <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded">
+                                            Left
+                                          </span>
+                                        )} */}
+                                      </div>
+                                    </TableHead>
+                                  ))}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {brandList.map((brandName) => (
+                                  <TableRow key={brandName} className="hover:bg-gray-50 border-b border-gray-100">
+                                    <TableCell className="font-semibold text-gray-900 bg-blue-50 sticky left-0 z-10 border-r border-blue-200 px-1 py-2 text-xs">
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-gray-800 truncate text-xs leading-tight" title={brandName}>
+                                          {brandName.length > 15 ? `${brandName.substring(0, 15)}...` : brandName}
+                                        </p>
+                                      </div>
+                                    </TableCell>
+                                    {sheetNames.map((sheetName, index) => {
+                                      const sheetData = data[sheetName];
+                                      const value = sheetData.brandData?.[brandName];
+                                      const numValue = Number(value);
+                                      const isNumeric = !isNaN(numValue) && value !== '' && value !== null && value !== undefined;
+                                      const isPositive = isNumeric && numValue > 0;
+                                      const isNegative = isNumeric && numValue < 0;
+                                      const isZero = isNumeric && numValue === 0;
+                                      const hasValue = value !== undefined && value !== null && value !== '';
+                                      
+                                      // Check if this is the "Left" sheet
+                                      const isLeftSheet = sheetName.toLowerCase() === 'left';
+                                      
+                                      // Apply special styling for any values from the "Left" sheet
+                                      const shouldApplyLeftBanner = isLeftSheet;
+                                      
+                                      return (
+                                        <TableCell key={`${sheetName}-${brandName}`} className={`text-center px-1 py-2 ${
+                                          hasValue && isNumeric && shouldApplyLeftBanner
+                                            ? isZero
+                                              ? 'bg-gray-50'
+                                              : isPositive
+                                                ? 'bg-red-50 border-l-2 border-red-500'     // Red banner for positive left
+                                                : 'bg-green-50 border-l-2 border-green-500' // Green banner for negative left
+                                            : ''
+                                        }`}>
+                                          {hasValue ? (
+                                            <div className="flex flex-col items-center">
+                                              <span className={`inline-block px-1 py-1 rounded text-xs font-bold ${
+                                                isNumeric 
+                                                  ? isZero 
+                                                    ? 'bg-gray-200 text-gray-800' 
+                                                    : shouldApplyLeftBanner
+                                                      ? isPositive
+                                                        ? 'bg-red-500 text-white'     // Strong red banner
+                                                        : 'bg-green-500 text-white' // Strong green banner
+                                                      : isPositive 
+                                                        ? 'bg-green-100 text-green-800' 
+                                                        : 'bg-red-100 text-red-800'
+                                                  : index === 0 ? 'bg-green-100 text-green-800' :
+                                                    index === 1 ? 'bg-purple-100 text-purple-800' :
+                                                    index === 2 ? 'bg-orange-100 text-orange-800' :
+                                                    'bg-blue-100 text-blue-800'
+                                              }`}>
+                                                {String(value).length > 8 ? `${String(value).substring(0, 8)}...` : String(value)}
+                                              </span>
+                                              {shouldApplyLeftBanner && hasValue && (
+                                                <span className={`text-xs px-1 rounded mt-1 ${
+                                                  isPositive ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                                }`}>
+                                                  {isPositive ? 'Need' : 'Done'}
+                                                </span>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <span className="text-gray-400 text-xs">—</span>
+                                          )}
+                                        </TableCell>
+                                      );
+                                    })}
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        );
+                      })()}
+                      
+                    
                     </CardContent>
                   </Card>
                 )}
 
-                {/* Multi-Tab Results */}
-                {multiTabData && multiTabData.length > 0 && (
-                  <>
-                    <div className="text-center mb-4">
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                        Multi-Tab Search Results
-                      </h3>
-                      <p className="text-gray-600">
-                        Found data for ID "{searchId}" in {multiTabData.length} tab{multiTabData.length !== 1 ? 's' : ''} of your Excel file
-                      </p>
-                    </div>
-                    
-                    {multiTabData.map((sheet, sheetIndex) => (
-                      <Card key={sheetIndex} className="shadow-lg border-0 bg-white/70 backdrop-blur-sm overflow-hidden">
-                        <CardHeader className="px-4 sm:px-6 py-4 sm:py-6 bg-gradient-to-r from-blue-50 to-purple-50">
-                          <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
-                            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                            {sheet.sheetName}
-                          </CardTitle>
-                          <CardDescription className="text-sm sm:text-base">
-                            Data from tab: {sheet.sheetName} | Searched column: {sheet.searchedColumn}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="px-3 sm:px-6 pb-4 sm:pb-6">
-                          <div className="grid gap-3 sm:gap-4 max-w-full overflow-x-auto">
-                            {Object.entries(sheet.data).map(([key, value]) => {
-                              const isRemainingTarget = key === "Remaining Target(Cans)";
-                              const isZeroOrLess = isRemainingTarget && Number(value) <= 0;
-                              const isTargetAchievement = key === "Target Acheivement";
-                              const isTargetN = isTargetAchievement && value === "N";
-                              const isTargetY = isTargetAchievement && value === "Y";
-                              let bgClass = "bg-gray-50";
-                              let valueClass = "bg-white text-gray-900";
-                              let labelClass = "text-gray-700";
-                              if (isRemainingTarget) {
-                                if (isZeroOrLess) {
-                                  bgClass = "bg-green-500";
-                                  valueClass = "bg-green-600 text-white border-green-700";
-                                  labelClass = "text-white";
-                                } else {
-                                  bgClass = "bg-red-500";
-                                  valueClass = "bg-red-600 text-white border-red-700";
-                                  labelClass = "text-white";
-                                }
-                              } else if (isTargetAchievement) {
-                                if (isTargetN) {
-                                  bgClass = "bg-red-500";
-                                  valueClass = "bg-red-600 text-white border-red-700";
-                                  labelClass = "text-white";
-                                } else if (isTargetY) {
-                                  bgClass = "bg-green-500";
-                                  valueClass = "bg-green-600 text-white border-green-700";
-                                  labelClass = "text-white";
-                                }
-                              }
-                              return (
-                                <div
-                                  key={key}
-                                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 ${bgClass} rounded-lg`}
-                                >
-                                  <span className={`font-medium capitalize mb-1.5 sm:mb-0 text-sm sm:text-base ${labelClass}`}>
-                                    {key.replace(/([A-Z])/g, " $1").trim()}:
-                                  </span>
-                                  <span className={`font-mono text-sm px-2 sm:px-3 py-1 rounded border break-all sm:break-normal ${valueClass}`}>
-                                    {String(value)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </>
-                )}
+              
               </div>
             )}
           
